@@ -1,11 +1,11 @@
 '''
  Checks the media download urls to ensure they are valid links
- 
- For full instructions, see the documentation at 
+
+ For full instructions, see the documentation at
  https://oppiamobile.readthedocs.org/en/latest/
 '''
 
-import urllib2
+import urllib
 import time
 import django.db.models
 
@@ -26,15 +26,19 @@ class Command(BaseCommand):
 
         media = Media.objects.all()
         for m in media:
-            print("Checking: " + m.filename)
+            self.stdout.write("Checking: " + m.filename)
             try:
-                req = urllib2.Request(m.download_url)
-                response = urllib2.urlopen(req)
+                response = urllib.request.urlopen(m.download_url)
                 if m.filesize is not None:
-                    total_size = int(response.headers['content-length'])
+                    total_size = int(response.getheader('content-length'))
                     if total_size != m.filesize:
-                        print("INFO: file sizes appear to be different:")
-                        print("filesize recorded in db:" + m.filesize)
-                        print("filesize of download url:" + total_size)
-            except urllib2.HTTPError:
-                print("WARNING: media file not found at: " + m.download_url)
+                        self.stdout \
+                            .write("INFO: file sizes appear to be different:")
+                        self.stdout \
+                            .write("filesize recorded in db:" + m.filesize)
+                        self.stdout \
+                            .write("filesize of download url:" + total_size)
+            except urllib.error.HTTPError:
+                self.stdout \
+                    .write("WARNING: media file not found at: "
+                           + m.download_url)

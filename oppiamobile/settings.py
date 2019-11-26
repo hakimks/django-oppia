@@ -12,6 +12,8 @@ https://docs.djangoproject.com/en/1.11/ref/settings/
 
 import os
 
+from django.utils.translation import gettext_lazy as _
+
 # SECURITY WARNING: keep the secret key used in production secret!
 SECRET_KEY = 'uzekt30thl4&hw)p@c#ht=b8mn!3l080kmnuk7ez+g5l%lb*p9'
 
@@ -22,15 +24,6 @@ ROOT_DIR = os.path.abspath(os.path.join(BASE_DIR, os.pardir))
 ALLOWED_HOSTS = []
 DEBUG = True
 
-DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.mysql',
-        'NAME': 'oppia',
-        'USER': 'YOUR_DB_USERNAME',
-        'PASSWORD': 'YOUR_DB_PASSWORD',
-    }
-}
-
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
@@ -40,13 +33,13 @@ MIDDLEWARE = [
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
     'oppia.middleware.LoginRequiredMiddleware',
-]
 
+]
 
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
-        'DIRS': [ os.path.join(BASE_DIR, 'templates') ],
+        'DIRS': [os.path.join(BASE_DIR, 'templates')],
         'APP_DIRS': True,
         'OPTIONS': {
             'context_processors': [
@@ -80,12 +73,14 @@ INSTALLED_APPS = [
     'oppia',
     'tastypie',
     'helpers',
+    'integrations',
     'crispy_forms',
     'sass_processor',
     'sorl.thumbnail',
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
+    'django.contrib.humanize',
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
@@ -97,7 +92,7 @@ SITE_ID = 1
 
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/1.11/howto/static-files/
-STATICFILES_DIRS = [os.path.join(BASE_DIR, 'static'),]
+STATICFILES_DIRS = [os.path.join(BASE_DIR, 'static')]
 STATIC_ROOT = os.path.join(ROOT_DIR, 'static')
 MEDIA_ROOT = os.path.join(ROOT_DIR, 'media')
 ADMIN_MEDIA_PREFIX = '/static/admin/'
@@ -106,9 +101,7 @@ STATICFILES_FINDERS = [
     'django.contrib.staticfiles.finders.FileSystemFinder',
     'django.contrib.staticfiles.finders.AppDirectoriesFinder',
     'sass_processor.finders.CssFinder',
-
 ]
-
 
 ROOT_URLCONF = 'oppiamobile.urls'
 MEDIA_URL = '/media/'
@@ -128,10 +121,9 @@ LANGUAGE_CODE = 'en-GB'
 USE_I18N = True
 USE_L10N = True
 
-gettext = lambda s: s
-LANGUAGES = ('en', gettext('English'))
+LANGUAGES = ('en', _('English'))
 
-CRISPY_TEMPLATE_PACK = 'bootstrap3'
+CRISPY_TEMPLATE_PACK = 'bootstrap4'
 
 # Login and logout settings
 # https://docs.djangoproject.com/en/1.11/ref/settings/#login-redirect-url
@@ -150,8 +142,8 @@ LOGIN_EXEMPT_URLS = (
     r'^about/$',
     r'^terms/$',
     r'^api/',  # allow any URL under api/* - auth handled by api_key
-    r'^modules/api/',  # allow any URL under modules/api/* - auth handled by api_key
-    r'^badges/api/',  # allow any URL under badges/api/* - auth handled by api_key
+    r'^modules/api/',  # allow any URL under modules/api/* - auth by api_key
+    r'^badges/api/',  # allow any URL under badges/api/* - auth by api_key
     r'^content/video-embed-helper/$',
     r'^media/temp/',
     r'^media/uploaded/',
@@ -163,7 +155,7 @@ LOGIN_EXEMPT_URLS = (
 COURSE_UPLOAD_DIR = os.path.join(ROOT_DIR, 'upload')
 
 OPPIA_METADATA = {
-    'NETWORK': True,  
+    'NETWORK': True,
     'DEVICE_ID': True,
     'SIM_SERIAL': True,
     'WIFI_ON': True,
@@ -172,17 +164,27 @@ OPPIA_METADATA = {
     'GPS': False,
 }
 
-OPPIA_ALLOW_SELF_REGISTRATION = True    # turns on/off ability for users to self register
+# turns on/off ability for users to self register
+OPPIA_ALLOW_SELF_REGISTRATION = True
 OPPIA_SHOW_GRAVATARS = True
-OPPIA_STAFF_ONLY_UPLOAD = True          # prevents anyone without is_staff status being able to upload courses,
-# setting to False allows any registered user to upload a course
 
-OPPIA_POINTS_ENABLED = True            # determines if the points system is enabled
+# prevents anyone without is_staff status being able to upload courses,
+# setting to False allows any registered user to upload a course
+OPPIA_STAFF_ONLY_UPLOAD = True
+
+# determines if the points system is enabled
+OPPIA_POINTS_ENABLED = True
+
 # if OPPIA POINTS_ENABLED is false, then the next 3 settings are ignored
-OPPIA_STAFF_EARN_POINTS = False         # prevent staff from earning points
-OPPIA_COURSE_OWNERS_EARN_POINTS = False  # stops owners of courses earning points
-OPPIA_TEACHERS_EARN_POINTS = False      # stops teachers of courses earning points
-OPPIA_BADGES_ENABLED = True            # determines if the badges system is enabled
+# prevent staff from earning points
+OPPIA_STAFF_EARN_POINTS = False
+
+# stops owners of courses earning points
+OPPIA_COURSE_OWNERS_EARN_POINTS = False
+# stops teachers of courses earning points
+OPPIA_TEACHERS_EARN_POINTS = False
+# determines if the badges system is enabled
+OPPIA_BADGES_ENABLED = True
 
 BADGE_AWARD_METHOD_ALL_ACTIVITIES = 'all activities'
 BADGE_AWARD_METHOD_FINAL_QUIZ = 'final quiz'
@@ -194,7 +196,7 @@ OPPIA_GOOGLE_ANALYTICS_ENABLED = False
 OPPIA_GOOGLE_ANALYTICS_CODE = 'YOUR_GOOGLE_ANALYTICS_CODE'
 OPPIA_GOOGLE_ANALYTICS_DOMAIN = 'YOUR_DOMAIN'
 
-OPPIA_MAX_UPLOAD_SIZE = 5242880         # max course file upload size - in bytes
+OPPIA_MAX_UPLOAD_SIZE = 5242880  # max course file upload size - in bytes
 
 OPPIA_VIDEO_FILE_TYPES = ("video/m4v", "video/mp4", "video/3gp", "video/3gpp")
 OPPIA_AUDIO_FILE_TYPES = ("audio/mpeg", "audio/amr", "audio/mp3")
@@ -203,21 +205,20 @@ OPPIA_MEDIA_IMAGE_FILE_TYPES = ("image/png", "image/jpeg")
 
 OPPIA_UPLOAD_TRACKER_FILE_TYPES = [("application/json")]
 
-OPPIA_EXPORT_LOCAL_MINVERSION = 2017011400  # min version of the export block to process the quizzes locally
-
-# Android app PackageId - for Google Play link and opening activities from digest
+# Android app PackageId - for Google Play link and opening activities
+# from digest
 OPPIA_ANDROID_DEFAULT_PACKAGEID = 'org.digitalcampus.mobile.learning'
 OPPIA_ANDROID_PACKAGEID = 'org.digitalcampus.mobile.learning'
-OPPIA_ANDROID_ON_GOOGLE_PLAY = True # if the app is not on Google Play, we rely on the core version for store links
+
+# if the app is not on Google Play, we rely on the core version for store
+# links
+OPPIA_ANDROID_ON_GOOGLE_PLAY = True
 
 API_LIMIT_PER_PAGE = 0
 
-DEVICE_ADMIN_ENABLED = False
-GCM_DEVICE_MODEL = 'deviceadmin.models.UserDevice'
-GCM_APIKEY = 'OPPIA_GOOGLEAPIKEY'
-
 SCREENSHOT_GENERATOR_PROGRAM = "ffmpeg"
-SCREENSHOT_GENERATOR_PROGRAM_PARAMS = "-i %s -r 0.02 -s %dx%d -f image2 %s/frame-%%03d.png"
+SCREENSHOT_GENERATOR_PROGRAM_PARAMS = \
+    "-i %s -r 0.02 -s %dx%d -f image2 %s/frame-%%03d.png"
 
 MEDIA_PROCESSOR_PROGRAM = "ffprobe"
 MEDIA_PROCESSOR_PROGRAM_PARAMS = ""
@@ -225,11 +226,6 @@ MEDIA_PROCESSOR_PROGRAM_PARAMS = ""
 # Import secret_settings.py (if exists)
 # > see settings_secret.py.template for reference
 try:
-    from settings_secret import *
+    from oppiamobile.settings_secret import *
 except ImportError:
-    pass
-
-
-if DEVICE_ADMIN_ENABLED:
-    INSTALLED_APPS += ('deviceadmin', 'gcm', )
-
+    print("settings_secret.py file could not be found.")

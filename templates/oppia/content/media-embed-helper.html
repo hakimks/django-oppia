@@ -7,8 +7,13 @@
 	{% trans 'Media Embed Helper' %}
 {% endblock extra_head_title %}
 
+{% block header %}
+<div class="jumbotron mb-4 ">
+	<h3>{% trans 'Media Embed Helper' %}</h3>
+</div>
+{% endblock header %}
+
 {% block content %}
-<h2>{% trans 'Media Embed Helper' %}</h2>
 
 {% crispy form %}
 
@@ -25,7 +30,7 @@
 		<div style="padding:20px;">
         {{ processed_media.embed_code }}
         </div>
-        
+
         {% if processed_media.image_files %}
             {% blocktrans %}
             <p>The script has also generated the following screenshots from the media that you may wish to use (right click over the image and select 'save as' to save to your computer for uploading into Moodle):</p>

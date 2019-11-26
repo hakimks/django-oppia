@@ -1,15 +1,15 @@
 # oppia/av/views.py
 
-from django.core import exceptions
 from django.core.paginator import Paginator, InvalidPage, EmptyPage
 from django.http import HttpResponseRedirect
 from django.shortcuts import render, get_object_or_404
 from django.urls import reverse
 from django.utils.translation import ugettext_lazy as _
-from forms import UploadMediaForm
-from models import UploadedMedia, UploadedMediaImage
 
 from av import handler
+from av.forms import UploadMediaForm
+from av.models import UploadedMedia, UploadedMediaImage
+from oppia.permissions import user_can_upload
 
 
 def home_view(request):
@@ -32,62 +32,57 @@ def home_view(request):
     except (EmptyPage, InvalidPage):
         media = paginator.page(paginator.num_pages)
 
-    return render(request, 'oppia/av/home.html',
-                              {'title': _(u'Uploaded Media'),
-                                'page': media})
+    return render(request, 'av/home.html',
+                  {'title': _(u'Uploaded Media'),
+                   'page': media})
 
 
+@user_can_upload
 def upload_view(request):
-    if not request.user.userprofile.get_can_upload():
-        raise exceptions.PermissionDenied
-
     if request.method == 'POST':
         result = handler.upload(request, request.user)
 
         if result['result'] == UploadedMedia.UPLOAD_STATUS_SUCCESS:
-            return HttpResponseRedirect(reverse('oppia_av_upload_success', args=[result['media'].id]))
+            return HttpResponseRedirect(reverse('oppia_av_upload_success',
+                                                args=[result['media'].id]))
         else:
             form = result['form']
     else:
         form = UploadMediaForm()  # An unbound form
 
-    return render(request, 'oppia/av/upload.html',
-                              {'form': form,
-                               'title': _(u'Upload Media')})
+    return render(request, 'av/upload.html',
+                  {'form': form,
+                   'title': _(u'Upload Media')})
 
 
+@user_can_upload
 def upload_success_view(request, id):
-    if not request.user.userprofile.get_can_upload():
-        raise exceptions.PermissionDenied
-
     media = get_object_or_404(UploadedMedia, pk=id)
 
-    embed_code = media.get_embed_code(request.build_absolute_uri(media.file.url))
+    embed_code = media.get_embed_code(
+        request.build_absolute_uri(media.file.url))
 
-    return render(request, 'oppia/av/upload_success.html',
-                              {'title': _(u'Upload Media'),
-                               'media': media,
-                               'embed_code': embed_code})
+    return render(request, 'av/upload_success.html',
+                  {'title': _(u'Upload Media'),
+                   'media': media,
+                   'embed_code': embed_code})
 
 
+@user_can_upload
 def media_view(request, id):
-    if not request.user.userprofile.get_can_upload():
-        raise exceptions.PermissionDenied
-
     media = get_object_or_404(UploadedMedia, pk=id)
 
-    embed_code = media.get_embed_code(request.build_absolute_uri(media.file.url))
+    embed_code = media.get_embed_code(
+        request.build_absolute_uri(media.file.url))
 
-    return render(request, 'oppia/av/view.html',
-                              {'title': _(u'Media'),
-                               'media': media,
-                               'embed_code': embed_code})
+    return render(request, 'av/view.html',
+                  {'title': _(u'Media'),
+                   'media': media,
+                   'embed_code': embed_code})
 
 
+@user_can_upload
 def set_default_image_view(request, image_id):
-    if not request.user.userprofile.get_can_upload():
-        raise exceptions.PermissionDenied
-
     media = UploadedMedia.objects.get(images__pk=image_id)
 
     # reset all images to not be default

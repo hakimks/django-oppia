@@ -1,7 +1,10 @@
 # coding: utf-8
 """
-Management command to get user locations based on their IP address in the Tracker model
+Management command to get user locations based on their IP address in the
+Tracker model
 """
+
+import urllib
 
 from django.core.management.base import BaseCommand
 from django.db.models import Count
@@ -12,10 +15,14 @@ from viz.models import UserLocationVisualization
 
 
 class Command(BaseCommand):
-    help = _(u'Gets user locations based on their IP address in the Tracker model')
+    help = _(u'Gets user locations based on their IP address in the \
+            Tracker model')
 
     def handle(self, *args, **options):
-        tracker_ip_hits = Tracker.objects.filter(user__is_staff=False).values('ip').annotate(count_hits=Count('ip'))
+        tracker_ip_hits = Tracker.objects \
+            .filter(user__is_staff=False) \
+            .values('ip') \
+            .annotate(count_hits=Count('ip'))
 
         for t in tracker_ip_hits:
             # lookup whether already cached in db
@@ -23,19 +30,19 @@ class Command(BaseCommand):
                 cached = UserLocationVisualization.objects.get(ip=t['ip'])
                 cached.hits = t['count_hits']
                 cached.save()
-                print("hits updated")
+                self.stdout.write("hits updated")
             except UserLocationVisualization.DoesNotExist:
                 update_via_freegeoip(t)
 
 
 def update_via_freegeoip(t):
     url = 'https://freegeoip.net/json/%s' % (t['ip'])
-    print(t['ip'] + " : " + url)
+    self.stdout.write(t['ip'] + " : " + url)
     try:
-        u = urllib2.urlopen(urllib2.Request(url), timeout=10)
+        u = urllib.request.urlopen(url, timeout=10)
         data = u.read()
         data_json = json.loads(data, "utf-8")
-        print(data_json)
+        self.stdout.write(data_json)
     except:
         return
 
@@ -51,4 +58,4 @@ def update_via_freegeoip(t):
         viz.geonames_data = data_json
         viz.save()
 
-    time.sleep(commands.DEFAULT_SLEEP)
+    time.sleep(5)

@@ -1,5 +1,6 @@
 # oppia/content/views.py
 import hashlib
+import json
 import math
 import os
 import subprocess
@@ -14,13 +15,10 @@ import content
 from content.forms import MediaEmbedHelperForm
 
 '''
-Processes the media file found at the given URL and provides the embed code and sample images for embedding into Moodle.
+Processes the media file found at the given URL and provides the embed code
+and sample images for embedding into Moodle.
 
 NOTE: for this to run you will need to have ffmpeg and avprobe installed
-For Ubuntu these can be installed by:
-
-ffmpeg see: https://launchpad.net/~mc3man/+archive/ubuntu/trusty-media
-avprobe: sudo apt-get install libav-tools
 
 '''
 
@@ -34,7 +32,9 @@ def media_embed_helper(request):
         if form.is_valid():
             media_url = form.cleaned_data.get("media_url")
             media_guid = str(uuid.uuid4())
-            media_local_file = os.path.join(settings.COURSE_UPLOAD_DIR, 'temp', media_guid)
+            media_local_file = os.path.join(settings.COURSE_UPLOAD_DIR,
+                                            'temp',
+                                            media_guid)
             download_error = None
             processed_media = {}
 
@@ -43,8 +43,12 @@ def media_embed_helper(request):
                 media_url, media_local_file, download_error, processed_media)
 
             download_error, processed_media = process_media_file(
-                media_guid, media_url, media_local_file, download_error, processed_media)
-            
+                media_guid,
+                media_url,
+                media_local_file,
+                download_error,
+                processed_media)
+
             # try to delete the temp media file
             try:
                 os.remove(media_local_file)
@@ -54,14 +58,20 @@ def media_embed_helper(request):
         form = MediaEmbedHelperForm()
 
     return render(request, 'oppia/content/media-embed-helper.html',
-                              {'settings': settings,
-                               'form': form,
-                               'processed_media': processed_media})
+                  {'settings': settings,
+                   'form': form,
+                   'processed_media': processed_media})
 
 
-def process_media_file(media_guid, media_url, media_local_file, download_error, processed_media):
-    
-    if download_error is None and can_execute(settings.SCREENSHOT_GENERATOR_PROGRAM) and can_execute(settings.MEDIA_PROCESSOR_PROGRAM):
+def process_media_file(media_guid,
+                       media_url,
+                       media_local_file,
+                       download_error,
+                       processed_media):
+
+    if download_error is None \
+      and can_execute(settings.SCREENSHOT_GENERATOR_PROGRAM) \
+      and can_execute(settings.MEDIA_PROCESSOR_PROGRAM):
 
         # get the basic meta info
         file_size = os.path.getsize(media_local_file)
@@ -72,11 +82,20 @@ def process_media_file(media_guid, media_url, media_local_file, download_error, 
 
         if success:
             # create some image/screenshots
-            image_path = generate_media_screenshots(media_local_file, media_guid)
-            processed_media['embed_code'] = content.EMBED_TEMPLATE % (media_url.split('/')[-1], media_url, md5sum, file_size, file_length)
+            image_path = generate_media_screenshots(media_local_file,
+                                                    media_guid)
+            processed_media['embed_code'] = \
+                content.EMBED_TEMPLATE % (media_url.split('/')[-1],
+                                          media_url,
+                                          md5sum,
+                                          file_size,
+                                          file_length)
 
             # Add the generated images to the output
-            processed_media['image_url_root'] = settings.MEDIA_URL + "temp/" + media_guid + ".images/"
+            processed_media['image_url_root'] = settings.MEDIA_URL \
+                + "temp/" \
+                + media_guid \
+                + ".images/"
             processed_media['image_files'] = next(os.walk(image_path))[2]
             processed_media['success'] = True
 
@@ -90,13 +109,16 @@ def process_media_file(media_guid, media_url, media_local_file, download_error, 
             processed_media['error'] = download_error.strerror
         else:
             processed_media['error'] = _("ffmpeg_missing")
-    
+
     return download_error, processed_media
 
 
-def check_media_link(media_url, media_local_file, download_error, processed_media):
+def check_media_link(media_url,
+                     media_local_file,
+                     download_error,
+                     processed_media):
     try:
-        urllib.urlretrieve(media_url, filename=media_local_file)
+        urllib.request.urlretrieve(media_url, media_local_file)
     except IOError as err:
         download_error = err
         processed_media['success'] = False
@@ -105,16 +127,20 @@ def check_media_link(media_url, media_local_file, download_error, processed_medi
 
 
 def get_length(filename):
-    result = subprocess.Popen([settings.MEDIA_PROCESSOR_PROGRAM, filename], stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+    result = subprocess.Popen([settings.MEDIA_PROCESSOR_PROGRAM,
+                               filename,
+                               '-print_format',
+                               'json',
+                               '-show_streams',
+                               '-loglevel',
+                               'quiet'],
+                              stdout=subprocess.PIPE,
+                              stderr=subprocess.STDOUT)
 
-    duration_list = [x for x in result.stdout.readlines() if "Duration" in x]
-    if len(duration_list) != 0:
-        time_components = duration_list[0].split(',')[0].split(':')
-        hours = int(time_components[1])
-        mins = int(time_components[2])
-        secs = math.floor(float(time_components[3]))
-        media_length = (hours * 60 * 60) + (mins * 60) + secs
-        return True, int(media_length)
+    duration = float(
+        json.loads(result.stdout.read())['streams'][0]['duration'])
+    if duration != 0:
+        return True, duration
     else:
         return False, 0
 
@@ -124,15 +150,21 @@ def generate_media_screenshots(media_local_file, media_guid):
     if not os.path.exists(os.path.join(settings.MEDIA_ROOT, 'temp')):
         os.makedirs(os.path.join(settings.MEDIA_ROOT, 'temp'))
 
-    image_path = os.path.join(settings.MEDIA_ROOT, 'temp', media_guid + ".images")
+    image_path = os.path.join(settings.MEDIA_ROOT,
+                              'temp',
+                              media_guid + ".images")
 
     if not os.path.exists(image_path):
         os.makedirs(image_path)
 
-    image_generator_command = ("%s %s" % (settings.SCREENSHOT_GENERATOR_PROGRAM, settings.SCREENSHOT_GENERATOR_PROGRAM_PARAMS)) % (media_local_file,
-                                                                                                                                  content.SCREENSHOT_IMAGE_WIDTH,
-                                                                                                                                  content.SCREENSHOT_IMAGE_HEIGHT,
-                                                                                                                                  image_path)
+    image_generator_command = \
+        ("%s %s" %
+         (settings.SCREENSHOT_GENERATOR_PROGRAM,
+          settings.SCREENSHOT_GENERATOR_PROGRAM_PARAMS)) \
+        % (media_local_file,
+           content.SCREENSHOT_IMAGE_WIDTH,
+           content.SCREENSHOT_IMAGE_HEIGHT,
+           image_path)
     subprocess.call(image_generator_command, shell=True)
     return image_path
 

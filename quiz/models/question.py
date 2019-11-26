@@ -16,15 +16,21 @@ class Question(models.Model):
     )
     owner = models.ForeignKey(User, null=True, on_delete=models.SET_NULL)
     created_date = models.DateTimeField('date created', default=timezone.now)
-    lastupdated_date = models.DateTimeField('date updated', default=timezone.now)
+    lastupdated_date = models.DateTimeField('date updated',
+                                            default=timezone.now)
     title = models.TextField(blank=False)
-    type = models.CharField(max_length=15, choices=QUESTION_TYPES, default='multichoice')
+    type = models.CharField(max_length=15,
+                            choices=QUESTION_TYPES,
+                            default='multichoice')
 
     class Meta:
         verbose_name = _('Question')
         verbose_name_plural = _('Questions')
 
     def __unicode__(self):
+        return self.title
+
+    def __str__(self):
         return self.title
 
     def get_maxscore(self):
@@ -42,4 +48,7 @@ class QuestionProps(models.Model):
         verbose_name_plural = _('QuestionProps')
 
     def __unicode__(self):
+        return self.name
+
+    def __str__(self):
         return self.name

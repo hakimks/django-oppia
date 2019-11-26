@@ -21,6 +21,9 @@ class Badge(models.Model):
     def __unicode__(self):
         return self.description
 
+    def __str__(self):
+        return self.description
+
 
 class Award(models.Model):
     badge = models.ForeignKey(Badge, on_delete=models.CASCADE)
@@ -33,6 +36,9 @@ class Award(models.Model):
         verbose_name_plural = _('Awards')
 
     def __unicode__(self):
+        return self.description
+
+    def __str__(self):
         return self.description
 
     @staticmethod

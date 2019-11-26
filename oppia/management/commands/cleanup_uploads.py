@@ -27,14 +27,18 @@ class Command(BaseCommand):
                 # find out if it's a live course file
                 courses = Course.objects.filter(filename=filename)
                 if courses.count() == 0:
-                    #delete the file
-                    os.remove(os.path.join(settings.COURSE_UPLOAD_DIR, filename))
-                    print("Removed: " + filename)
+                    # delete the file
+                    os.remove(os.path.join(settings.COURSE_UPLOAD_DIR,
+                                           filename))
+                    self.stdout.write("Removed: " + filename)
 
         """
         Flag up courses that don't have files
         """
         courses = Course.objects.all()
         for course in courses:
-            if not os.path.isfile(os.path.join(settings.COURSE_UPLOAD_DIR, course.filename)):
-                print("FILE MISSING: %s for %s " % (course.filename, course.title))
+            if not os.path.isfile(os.path.join(settings.COURSE_UPLOAD_DIR,
+                                               course.filename)):
+                self.stdout \
+                    .write("FILE MISSING: %s for %s " % (course.filename,
+                                                         course.title))

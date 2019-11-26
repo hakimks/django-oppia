@@ -29,8 +29,5 @@ urlpatterns = [
     url(r'^av/', include('av.urls')),
     url(r'^gamification/', include('gamification.urls')),
     url(r'^admin/', admin.site.urls),
+    url(r'^integrations/', include('integrations.urls')),
 ]
-
-if settings.DEVICE_ADMIN_ENABLED:
-    gcmpatterns = [ url(r'^deviceadmin/', include('deviceadmin.urls')), ]
-    urlpatterns += gcmpatterns

@@ -4,9 +4,10 @@ from django.utils.translation import ugettext
 register = template.Library()
 
 
-@register.inclusion_tag('oppia/includes/sort-link.html', takes_context=True)
+@register.inclusion_tag('common/sort-link.html', takes_context=True)
 def sort_link(context, attr_name, attr_title):
-    ordering = context["page_ordering"] if ("page_ordering" in context) else None
+    ordering = context["page_ordering"] \
+        if ("page_ordering" in context) else None
     inverse_order = ordering is not None and ordering.startswith('-')
     if inverse_order:
         ordering = ordering[1:]

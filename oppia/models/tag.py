@@ -15,13 +15,19 @@ class Tag(models.Model):
     description = models.TextField(blank=True, null=True, default=None)
     order_priority = models.IntegerField(default=0)
     highlight = models.BooleanField(default=False)
-    icon = models.FileField(upload_to="tags", null=True, blank=True, default=None)
+    icon = models.FileField(upload_to="tags",
+                            null=True,
+                            blank=True,
+                            default=None)
 
     class Meta:
         verbose_name = _('Tag')
         verbose_name_plural = _('Tags')
 
     def __unicode__(self):
+        return self.name
+
+    def __str__(self):
         return self.name
 
 
