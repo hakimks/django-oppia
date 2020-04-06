@@ -1,15 +1,13 @@
-# oppia/tests/tracker/test_tracker.py
+from oppia.test import OppiaTestCase
+
 from django.contrib.auth.models import User
-from django.test import TestCase
-from django.test.client import Client
 from django.urls import reverse
 
 from oppia.models import Tracker
 from quiz.models import QuizAttemptResponse, QuizAttempt
-from tests.user_logins import *
 
 
-class UploadActivityLogTest(TestCase):
+class UploadActivityLogTest(OppiaTestCase):
 
     fixtures = ['tests/test_user.json',
                 'tests/test_oppia.json',
@@ -17,24 +15,17 @@ class UploadActivityLogTest(TestCase):
                 'tests/test_permissions.json',
                 'default_gamification_events.json']
 
-    def setUp(self):
-        self.client = Client()
-        self.url = reverse('oppia_activitylog_upload')
-        self.basic_activity_log = \
-            './oppia/fixtures/activity_logs/basic_activity.json'
-        self.activity_log_file_path = \
-            './oppia/fixtures/activity_logs/activity_upload_test.json'
-        self.wrong_activity_file = \
-            './oppia/fixtures/activity_logs/wrong_format.json'
-        self.new_user_activity = \
-            './oppia/fixtures/activity_logs/new_user_activity.json'
-        self.quiz_attempt_log = \
-            './oppia/fixtures/activity_logs/quiz_attempts.json'
+    url = reverse('activitylog:upload')
+    basic_activity_log = './oppia/fixtures/activity_logs/basic_activity.json'
+    activity_log_file_path = \
+        './oppia/fixtures/activity_logs/activity_upload_test.json'
+    wrong_activity_file = './oppia/fixtures/activity_logs/wrong_format.json'
+    new_user_activity = './oppia/fixtures/activity_logs/new_user_activity.json'
+    quiz_attempt_log = './oppia/fixtures/activity_logs/quiz_attempts.json'
 
     def test_no_file(self):
         # no file
-        self.client.login(username=ADMIN_USER['user'],
-                          password=ADMIN_USER['password'])
+        self.client.force_login(self.admin_user)
         response = self.client.post(self.url, {})
         self.assertEqual(response.status_code, 200)
         self.assertFormError(response,
@@ -43,9 +34,7 @@ class UploadActivityLogTest(TestCase):
                              'Please select an activity log file to upload')
 
     def test_wrong_format_file(self):
-        self.client.login(username=ADMIN_USER['user'],
-                          password=ADMIN_USER['password'])
-
+        self.client.force_login(self.admin_user)
         with open(self.wrong_activity_file, 'rb') as activity_log_file:
             response = self.client.post(self.url,
                                         {'activity_log_file':
@@ -59,8 +48,7 @@ class UploadActivityLogTest(TestCase):
     def test_correct_file(self):
         tracker_count_start = Tracker.objects.all().count()
 
-        self.client.login(username=ADMIN_USER['user'],
-                          password=ADMIN_USER['password'])
+        self.client.force_login(self.admin_user)
 
         with open(self.basic_activity_log, 'rb') as activity_log_file:
             response = self.client.post(self.url,
@@ -69,7 +57,7 @@ class UploadActivityLogTest(TestCase):
 
         # should be redirected to the success page
         self.assertRedirects(response,
-                             reverse('oppia_activitylog_upload_success'),
+                             reverse('activitylog:upload_success'),
                              302,
                              200)
 
@@ -80,8 +68,7 @@ class UploadActivityLogTest(TestCase):
         tracker_count_start = Tracker.objects.all().count()
         user_count_start = User.objects.all().count()
 
-        self.client.login(username=ADMIN_USER['user'],
-                          password=ADMIN_USER['password'])
+        self.client.force_login(self.admin_user)
 
         with open(self.new_user_activity, 'rb') as activity_log_file:
             response = self.client.post(self.url,
@@ -90,7 +77,7 @@ class UploadActivityLogTest(TestCase):
 
         # should be redirected to the update step 2 form
         self.assertRedirects(response,
-                             reverse('oppia_activitylog_upload_success'),
+                             reverse('activitylog:upload_success'),
                              302,
                              200)
 
@@ -104,8 +91,7 @@ class UploadActivityLogTest(TestCase):
         qa_count_start = QuizAttempt.objects.all().count()
         qar_count_start = QuizAttemptResponse.objects.all().count()
 
-        self.client.login(username=ADMIN_USER['user'],
-                          password=ADMIN_USER['password'])
+        self.client.force_login(self.admin_user)
 
         with open(self.quiz_attempt_log, 'rb') as activity_log_quiz_file:
             response = self.client.post(self.url,
@@ -113,7 +99,7 @@ class UploadActivityLogTest(TestCase):
                                          activity_log_quiz_file})
 
         self.assertRedirects(response,
-                             reverse('oppia_activitylog_upload_success'),
+                             reverse('activitylog:upload_success'),
                              302,
                              200)
 
@@ -128,8 +114,7 @@ class UploadActivityLogTest(TestCase):
     def test_trackers_not_duplicated(self):
         tracker_count_start = Tracker.objects.all().count()
 
-        self.client.login(username=ADMIN_USER['user'],
-                          password=ADMIN_USER['password'])
+        self.client.force_login(self.admin_user)
 
         with open(self.basic_activity_log, 'rb') as activity_log_file:
             response = self.client.post(self.url,
@@ -137,7 +122,7 @@ class UploadActivityLogTest(TestCase):
                                          activity_log_file})
 
         self.assertRedirects(response,
-                             reverse('oppia_activitylog_upload_success'),
+                             reverse('activitylog:upload_success'),
                              302,
                              200)
 
@@ -148,7 +133,7 @@ class UploadActivityLogTest(TestCase):
                                          activity_log_file})
 
         self.assertRedirects(response,
-                             reverse('oppia_activitylog_upload_success'),
+                             reverse('activitylog:upload_success'),
                              302,
                              200)
 
@@ -160,8 +145,7 @@ class UploadActivityLogTest(TestCase):
         qa_count_start = QuizAttempt.objects.all().count()
         qar_count_start = QuizAttemptResponse.objects.all().count()
 
-        self.client.login(username=ADMIN_USER['user'],
-                          password=ADMIN_USER['password'])
+        self.client.force_login(self.admin_user)
 
         with open(self.quiz_attempt_log, 'rb') as activity_log_quiz_file:
             response = self.client.post(self.url,
@@ -169,7 +153,7 @@ class UploadActivityLogTest(TestCase):
                                          activity_log_quiz_file})
 
         self.assertRedirects(response,
-                             reverse('oppia_activitylog_upload_success'),
+                             reverse('activitylog:upload_success'),
                              302,
                              200)
 
@@ -180,7 +164,7 @@ class UploadActivityLogTest(TestCase):
                                          activity_log_quiz_file})
 
         self.assertRedirects(response,
-                             reverse('oppia_activitylog_upload_success'),
+                             reverse('activitylog:upload_success'),
                              302,
                              200)
 

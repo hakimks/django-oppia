@@ -1,8 +1,6 @@
 # oppia/activitylog/models.py
-import datetime
 import os
 
-from django.conf import settings
 from django.contrib.auth.models import User
 from django.db import models
 from django.db.models.signals import post_delete
@@ -24,9 +22,6 @@ class UploadedActivityLog(models.Model):
     class Meta:
         verbose_name = _(u'Uploaded Activity Log')
         verbose_name_plural = _(u'Uploaded Activity Log')
-
-    def __unicode__(self):
-        return self.file.name
 
     def __str__(self):
         return self.file.name

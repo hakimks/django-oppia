@@ -1,6 +1,4 @@
 # oppia/av/models.py
-import datetime
-import hashlib
 import os
 
 from django.conf import settings
@@ -44,9 +42,6 @@ class UploadedMedia(models.Model):
         verbose_name = _(u'Uploaded Media')
         verbose_name_plural = _(u'Uploaded Media')
 
-    def __unicode__(self):
-        return self.file.name
-
     def __str__(self):
         return self.file.name
 
@@ -58,7 +53,11 @@ class UploadedMedia(models.Model):
                                      self.file.size,
                                      self.length)
         except FileNotFoundError:
-            return _("File %s not found" % self.file.name)
+            return EMBED_TEMPLATE % (os.path.basename(self.file.name),
+                                     uri,
+                                     self.md5,
+                                     0,
+                                     self.length)
 
     def filename(self):
         return os.path.basename(self.file.name)
@@ -78,6 +77,11 @@ class UploadedMedia(models.Model):
             except UploadedMediaImage.DoesNotExist:
                 return None
 
+    def get_filesize(self):
+        try:
+            return self.file.size
+        except FileNotFoundError:
+            return 0
 
 @receiver(post_delete, sender=UploadedMedia)
 def uploaded_media_delete_file(sender, instance, **kwargs):
@@ -113,9 +117,6 @@ class UploadedMediaImage(models.Model):
     class Meta:
         verbose_name = _(u'Uploaded Media Image')
         verbose_name_plural = _(u'Uploaded Media Images')
-
-    def __unicode__(self):
-        return self.image.name
 
     def __str__(self):
         return self.image.name

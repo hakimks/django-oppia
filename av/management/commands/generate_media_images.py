@@ -18,9 +18,6 @@ from av.models import UploadedMedia, UploadedMediaImage
 class Command(BaseCommand):
     help = _(u"Generates sample media images")
 
-    def add_arguments(self, parser):
-        pass
-
     def handle(self, *args, **options):
         """
         Generates sample media images
@@ -77,7 +74,7 @@ class Command(BaseCommand):
         current_frame = 0
         for line in iter(ffmpeg.stdout.readline, ''):
             if "frame=" in line:
-                if line.split(" ")[3] is "":
+                if line.split(" ")[3] == "":
                     frame = int(line.split(" ")[4])
                 else:
                     frame = int(line.split(" ")[3])

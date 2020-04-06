@@ -1,10 +1,12 @@
-from django.test import TestCase
 
+from django.conf import settings
+from oppia.test import OppiaTestCase
 from settings.models import SettingProperties
 from summary.cron import update_summaries
 
 
-class SummaryCronTest(TestCase):
+class SummaryCronTest(OppiaTestCase):
+
     fixtures = ['tests/test_user.json',
                 'tests/test_oppia.json',
                 'tests/test_quiz.json',
@@ -27,6 +29,7 @@ class SummaryCronTest(TestCase):
 
         # check unlocked again
         lock = SettingProperties.get_int('oppia_summary_cron_lock', 999)
+        self.assertEqual(lock, 999)
 
     def test_summary_cron_locked(self):
         # set lock not

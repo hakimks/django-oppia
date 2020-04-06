@@ -1,29 +1,48 @@
-
-from django import forms
+from django.core.paginator import InvalidPage
 from django.urls import reverse
-from django.test import TestCase
-
-from django.contrib.auth.models import User
-
-from tests.user_logins import *
+from oppia.test import OppiaTestCase
 
 
-class PointsViewTest(TestCase):
+class PointsViewTest(OppiaTestCase):
     fixtures = ['tests/test_user.json',
                 'tests/test_oppia.json',
                 'tests/test_quiz.json',
                 'tests/test_permissions.json']
 
-    def setUp(self):
-        super(PointsViewTest, self).setUp()
+    url_points = reverse('profile:points')
+    template = 'profile/points.html'
 
-    def test_view_badges(self):
-        url = reverse('profile_points')
-        allowed_users = [ADMIN_USER, STAFF_USER, TEACHER_USER, NORMAL_USER]
+    def test_view_points(self):
+        allowed_users = [self.admin_user,
+                         self.staff_user,
+                         self.teacher_user,
+                         self.normal_user]
 
         for allowed_user in allowed_users:
-            self.client.login(username=allowed_user['user'],
-                              password=allowed_user['password'])
-            response = self.client.get(url)
-            self.assertTemplateUsed(response, 'profile/points.html')
-            self.assertEqual(response.status_code, 200)
+            self.client.force_login(user=allowed_user)
+            response = self.client.get(self.url_points)
+            self.assertTemplateUsed(response, self.template)
+            self.assertEqual(200, response.status_code)
+
+    def test_points_page_1(self):
+        self.client.force_login(user=self.admin_user)
+        url = '%s?page=1' % self.url_points
+        response = self.client.get(url)
+        self.assertEqual(200, response.status_code)
+        self.assertTemplateUsed(response, self.template)
+
+    def test_points_page_9999(self):
+        self.client.force_login(user=self.admin_user)
+        url = '%s?page=9999' % self.url_points
+        response = self.client.get(url)
+        self.assertRaises(InvalidPage)
+        self.assertEqual(200, response.status_code)
+        self.assertTemplateUsed(response, self.template)
+
+    def test_points_page_def(self):
+        self.client.force_login(user=self.admin_user)
+        url = '%s?page=def' % self.url_points
+        response = self.client.get(url)
+        self.assertRaises(ValueError)
+        self.assertEqual(200, response.status_code)
+        self.assertTemplateUsed(response, self.template)

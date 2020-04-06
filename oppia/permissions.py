@@ -4,7 +4,6 @@ from itertools import chain
 
 from django.conf import settings
 from django.contrib.auth.models import User
-from django.core import exceptions
 from django.core.exceptions import PermissionDenied
 from django.http import Http404, HttpResponseForbidden
 
@@ -31,26 +30,7 @@ def user_can_upload(function):
             return function(request, *args, **kwargs)
         else:
             raise PermissionDenied
-    wrap.__doc__ = function.__doc__
-    wrap.__name__ = function.__name__
     return wrap
-
-
-def check_owner(request, id):
-    try:
-        # check only the owner can view
-        if request.user.is_staff:
-            course = Course.objects.get(pk=id)
-        else:
-            try:
-                course = Course.objects.get(pk=id, user=request.user)
-            except Course.DoesNotExist:
-                course = Course.objects.get(pk=id,
-                                            coursemanager__course__id=id,
-                                            coursemanager__user=request.user)
-    except Course.DoesNotExist:
-        raise Http404
-    return course
 
 
 def can_edit_user(request, view_user_id):
@@ -64,7 +44,7 @@ def get_user(request, view_user_id):
     if request.user.is_staff or (request.user.id == int(view_user_id)):
         try:
             view_user = User.objects.get(pk=view_user_id)
-            return view_user, None
+            return view_user
         except User.DoesNotExist:
             raise Http404()
     try:
@@ -77,11 +57,11 @@ def get_user(request, view_user_id):
                 coursecohort__cohort__participant__role=Participant.TEACHER) \
             .count()
         if courses > 0:
-            return view_user, None
+            return view_user
         else:
-            raise exceptions.PermissionDenied
+            raise PermissionDenied
     except User.DoesNotExist:
-        raise exceptions.PermissionDenied
+        raise PermissionDenied
 
 
 def get_user_courses(request, view_user):
@@ -145,15 +125,15 @@ def can_view_cohort(request, cohort_id):
         cohort = Cohort.objects.get(pk=cohort_id)
     except Cohort.DoesNotExist:
         raise Http404
+
     try:
         if request.user.is_staff:
-            return cohort, None
+            return cohort
         return Cohort.objects.get(pk=cohort_id,
                                   participant__user=request.user,
-                                  participant__role=Participant.TEACHER), None
+                                  participant__role=Participant.TEACHER)
     except Cohort.DoesNotExist:
-        raise exceptions.PermissionDenied
-    raise exceptions.PermissionDenied
+        raise PermissionDenied
 
 
 def get_cohorts(request):
@@ -165,26 +145,27 @@ def get_cohorts(request):
             participant__role=Participant.TEACHER).order_by('description')
 
     if cohorts.count() == 0:
-        raise exceptions.PermissionDenied
+        raise PermissionDenied
 
-    return cohorts, None
+    return cohorts
 
 
 def can_view_course(request, course_id):
     try:
         if request.user.is_staff:
-            course = Course.objects.get(pk=course_id)
+            course = Course.objects.get(pk=course_id, is_archived=False)
         else:
             try:
                 course = Course.objects.get(pk=course_id,
                                             is_draft=False,
                                             is_archived=False)
             except Course.DoesNotExist:
-                course = Course.objects.get(pk=course_id,
-                                            is_draft=False,
-                                            is_archived=False,
-                                            coursemanager__course__id=id,
-                                            coursemanager__user=request.user)
+                course = Course.objects.get(
+                    pk=course_id,
+                    is_draft=False,
+                    is_archived=False,
+                    coursemanager__course__id=course_id,
+                    coursemanager__user__id=request.user.id)
     except Course.DoesNotExist:
         raise Http404
     return course
@@ -196,9 +177,9 @@ def can_view_course_detail(request, course_id):
             course = Course.objects.get(pk=course_id)
         except Course.DoesNotExist:
             raise Http404
-        return course, None
+        return course
     else:
-        return None, exceptions.PermissionDenied
+        raise PermissionDenied
 
 
 def can_edit_course(request, course_id):

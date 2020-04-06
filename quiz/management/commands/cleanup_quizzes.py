@@ -1,6 +1,4 @@
 
-import oppia.management.commands
-
 from distutils.util import strtobool
 
 from django.core.management.base import BaseCommand
@@ -20,12 +18,9 @@ class Command(BaseCommand):
     help = 'Cleans up old data (quizzes and questions) that are not relevant \
             anymore'
 
-    def add_arguments(self, parser):
-        pass
-
     def prompt(self, query):
         self.stdout.write('%s [y/n]: ' % query)
-        val = raw_input()
+        val = input()
         try:
             ret = strtobool(val)
         except ValueError:
@@ -33,11 +28,37 @@ class Command(BaseCommand):
             return self.prompt(query)
         return ret
 
-    def print_waiting_dot(self):
-        self.stdout.write("..", ending='')
-        self.stdout.flush()
+    def remove_duplicate_quizzes(self):
+        act_quizzes = Activity.objects.filter(type=Activity.QUIZ)
+        for aq in act_quizzes:
+            try:
+                quizobjs = Quiz.objects.filter(quizprops__value=aq.digest,
+                                               quizprops__name="digest")
+                quiz_to_delete = []
+                if quizobjs.count() > 1:
+                    self.stdout \
+                        .write("\nQuiz {} has {} associated quiz objects:\n"
+                               .format(aq.digest, quizobjs.count()))
+                    for quiz in quizobjs:
+                        attempts = QuizAttempt.objects \
+                            .filter(quiz=quiz).count()
+                        if not attempts:
+                            quiz_to_delete.append(quiz)
+                        self.stdout.write(
+                            "    Quiz {} has {} attempts\n".format(quiz,
+                                                                   attempts))
+
+                    if len(quiz_to_delete) > 0:
+                        self.stdout.write(
+                            "    > Do you want to remove the {} quizzes \
+                             without attempts?\n".format(len(quiz_to_delete)))
+
+            except Quiz.DoesNotExist:
+                pass
 
     def handle(self, *args, **options):
+
+        self.remove_duplicate_quizzes()
 
         quiz_act_digests = Activity.objects \
             .filter(type=Activity.QUIZ) \
@@ -76,9 +97,8 @@ class Command(BaseCommand):
                 self.style.MIGRATE_LABEL("  * " + key + ":")
                 + ' %d items to delete' % elem_count)
 
-        if total is 0:
-            self.stdout.write(
-                self.style.MIGRATE_SUCCESS("No new elements to clean up."))
+        if total == 0:
+            self.stdout.write("No new elements to clean up.")
         else:
             if self.prompt("You are about to delete %d records, are you sure?"
                            % total):
@@ -92,5 +112,4 @@ class Command(BaseCommand):
                 to_delete['Questions'].delete()
                 to_delete['QuizProps'].delete()
                 to_delete['Quizzes'].delete()
-                self.stdout.write(
-                    self.style.MIGRATE_SUCCESS("Quizzes cleaned up :)"))
+                self.stdout.write("Quizzes cleaned up :)")

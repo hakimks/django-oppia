@@ -32,6 +32,21 @@ from quiz.models import Quiz, \
 logger = logging.getLogger(__name__)
 
 
+def clean_lang_dict(elem_content):
+    if isinstance(elem_content, dict):
+        for lang in elem_content:
+            elem_content[lang] = elem_content[lang] \
+                .strip() \
+                .replace(u"\u00A0", " ")
+            return json.dumps(elem_content)
+    elif isinstance(elem_content, str):
+        return elem_content.strip().replace(u"\u00A0", " ")
+    else:
+        # If it was a boolean or a number (for some response types),
+        # return the value as is
+        return elem_content
+
+
 def handle_uploaded_file(f, extract_path, request, user):
     zipfilepath = os.path.join(settings.COURSE_UPLOAD_DIR, f.name)
 
@@ -42,17 +57,19 @@ def handle_uploaded_file(f, extract_path, request, user):
     try:
         zip_file = ZipFile(zipfilepath)
         zip_file.extractall(path=extract_path)
-    except BadZipfile:
+    except (OSError, BadZipfile):
         msg_text = _(u"Invalid zip file")
         messages.error(request, msg_text, extra_tags="danger")
         CoursePublishingLog(user=user,
                             action="invalid_zip",
                             data=msg_text).save()
+        shutil.rmtree(extract_path, ignore_errors=True)
         return False, 500
 
     mod_name = ''
-    for dir in os.listdir(extract_path)[:1]:
-        mod_name = dir
+    for x in os.listdir(extract_path):
+        if os.path.isdir(os.path.join(extract_path, x)):
+            mod_name = x
 
     # check there is at least a sub dir
     if mod_name == '':
@@ -61,6 +78,7 @@ def handle_uploaded_file(f, extract_path, request, user):
         CoursePublishingLog(user=user,
                             action="invalid_zip",
                             data=msg_text).save()
+        shutil.rmtree(extract_path, ignore_errors=True)
         return False, 400
 
     response = 200
@@ -155,6 +173,10 @@ def process_course(extract_path, f, mod_name, request, user):
     course.filename = f.name
     course.save()
 
+    if not parse_course_contents(request, doc, course, user, new_course):
+        return False, 500
+    clean_old_course(request, user, oldsections, old_course_filename, course)
+
     # save gamification events
     if 'gamification' in meta_info:
         events = parse_gamification_events(meta_info['gamification'])
@@ -176,9 +198,6 @@ def process_course(extract_path, f, mod_name, request, user):
                                     action="gamification_added",
                                     data=msg_text).save()
 
-    parse_course_contents(request, doc, course, user, new_course)
-    clean_old_course(request, user, oldsections, old_course_filename, course)
-
     tmp_path = replace_zip_contents(xml_path, doc, mod_name, extract_path)
     # Extract the final file into the courses area for preview
     zipfilepath = os.path.join(settings.COURSE_UPLOAD_DIR, f.name)
@@ -193,34 +212,17 @@ def process_course(extract_path, f, mod_name, request, user):
     return course, 200
 
 
-def parse_course_contents(req, xml_doc, course, user, new_course):
+def process_course_sections(request, structure, course, user, new_course):
+    for index, section in enumerate(structure.findall("section")):
 
-    # add in any baseline activities
-    parse_baseline_activities(req, xml_doc, course, user, new_course)
-
-    # add all the sections and activities
-    structure = xml_doc.find("structure")
-    if len(structure.findall("section")) == 0:
-        course.delete()
-        msg_text = \
-            _(u"There don't appear to be any activities in this upload file.")
-        messages.info(req, msg_text)
-        CoursePublishingLog(course=course,
-                            user=user,
-                            action="no_activities",
-                            data=msg_text).save()
-        return
-
-    for idx, s in enumerate(structure.findall("section")):
-
-        activities = s.find('activities')
+        activities = section.find('activities')
         # Check if the section contains any activity
         # (to avoid saving an empty one)
         if activities is None or len(activities.findall('activity')) == 0:
             msg_text = _("Section ") \
-                        + str(idx + 1) \
+                        + str(index + 1) \
                         + _(" does not contain any activities.")
-            messages.info(req, msg_text)
+            messages.info(request, msg_text)
             CoursePublishingLog(course=course,
                                 user=user,
                                 action="no_activities",
@@ -228,102 +230,152 @@ def parse_course_contents(req, xml_doc, course, user, new_course):
             continue
 
         title = {}
-        for t in s.findall('title'):
+        for t in section.findall('title'):
             title[t.get('lang')] = t.text
 
         section = Section(
             course=course,
             title=json.dumps(title),
-            order=s.get('order')
+            order=section.get('order')
         )
         section.save()
 
         for act in activities.findall("activity"):
-            parse_and_save_activity(req,
+            parse_and_save_activity(request,
                                     user,
                                     course,
                                     section,
                                     act,
                                     new_course)
 
+
+def process_course_media_events(request, media, events, course, user):
+    for event in events:
+        # Only add events if the didn't exist previously
+        e, created = MediaGamificationEvent.objects \
+            .get_or_create(media=media,
+                           event=event['name'],
+                           defaults={'points': event['points'],
+                                     'user': request.user})
+
+        if created:
+            msg_text = _(u'Gamification for "%(event)s" at course \
+                        level added') % {'event': e.event}
+            messages.info(request, msg_text)
+            CoursePublishingLog(course=course,
+                                user=user,
+                                action="course_gamification_added",
+                                data=msg_text).save()
+
+
+def process_course_media(request, media_element, course, user):
+    for file_element in media_element.findall('file'):
+        media = Media()
+        media.course = course
+        media.filename = file_element.get("filename")
+        url = file_element.get("download_url")
+        media.digest = file_element.get("digest")
+
+        if len(url) > Media.URL_MAX_LENGTH:
+            msg_text = _(u'File %(filename)s has a download URL larger \
+                        than the maximum length permitted. The media file \
+                        has not been registered, so it won\'t be tracked. \
+                        Please, fix this issue and upload the course \
+                        again.') % {'filename': media.filename}
+            messages.info(request, msg_text)
+            CoursePublishingLog(course=course,
+                                user=user,
+                                action="media_url_too_long",
+                                data=msg_text).save()
+        else:
+            media.download_url = url
+            # get any optional attributes
+            for attr_name, attr_value in file_element.attrib.items():
+                if attr_name == "length":
+                    media.media_length = attr_value
+                if attr_name == "filesize":
+                    media.filesize = attr_value
+
+            media.save()
+            # save gamification events
+            gamification = file_element.find('gamification')
+            events = parse_gamification_events(gamification)
+
+            process_course_media_events(request, media, events, course, user)
+
+
+def parse_course_contents(request, xml_doc, course, user, new_course):
+
+    # add in any baseline activities
+    parse_baseline_activities(request, xml_doc, course, user, new_course)
+
+    # add all the sections and activities
+    structure = xml_doc.find("structure")
+    if len(structure.findall("section")) == 0:
+        course.delete()
+        msg_text = \
+            _(u"There don't appear to be any activities in this upload file.")
+        messages.info(request, msg_text, extra_tags="danger")
+        CoursePublishingLog(user=user,
+                            action="no_activities",
+                            data=msg_text).save()
+        return False
+
+    process_course_sections(request, structure, course, user, new_course)
+
     media_element = xml_doc.find('media')
     if media_element is not None:
-        for file_element in media_element.findall('file'):
-            media = Media()
-            media.course = course
-            media.filename = file_element.get("filename")
-            url = file_element.get("download_url")
-            media.digest = file_element.get("digest")
-
-            if len(url) > Media.URL_MAX_LENGTH:
-                msg_text = _(u'File %(filename)s has a download URL larger \
-                            than the maximum length permitted. The media file \
-                            has not been registered, so it won\'t be tracked. \
-                            Please, fix this issue and upload the course \
-                            again.') % {'filename': media.filename}
-                messages.info(req, msg_text)
-                CoursePublishingLog(course=course,
-                                    user=user,
-                                    action="media_url_too_long",
-                                    data=msg_text).save()
-            else:
-                media.download_url = url
-                # get any optional attributes
-                for attr_name, attr_value in file_element.attrib.items():
-                    if attr_name == "length":
-                        media.media_length = attr_value
-                    if attr_name == "filesize":
-                        media.filesize = attr_value
-
-                media.save()
-                # save gamification events
-                gamification = file_element.find('gamification')
-                events = parse_gamification_events(gamification)
-
-                for event in events:
-                    # Only add events if the didn't exist previously
-                    e, created = MediaGamificationEvent.objects \
-                        .get_or_create(media=media,
-                                       event=event['name'],
-                                       defaults={'points': event['points'],
-                                                 'user': req.user})
-
-                    if created:
-                        msg_text = _(u'Gamification for "%(event)s" at course \
-                                    level added') % {'event': e.event}
-                        messages.info(req, msg_text)
-                        CoursePublishingLog(course=course,
-                                            user=user,
-                                            action="course_gamification_added",
-                                            data=msg_text).save()
+        process_course_media(request, media_element, course, user)
+    return True
 
 
-def parse_baseline_activities(req, xml_doc, course, user, new_course):
+def parse_baseline_activities(request, xml_doc, course, user, new_course):
 
     for meta in xml_doc.findall('meta')[:1]:
-        activities = meta.findall("activity")
-        if len(activities) > 0:
+        activity_nodes = meta.findall("activity")
+        if len(activity_nodes) > 0:
             section = Section(
                 course=course,
                 title='{"en": "Baseline"}',
                 order=0
             )
             section.save()
-            for act in activities:
-                parse_and_save_activity(req,
+            for activity_node in activity_nodes:
+                parse_and_save_activity(request,
                                         user,
                                         course,
                                         section,
-                                        act,
+                                        activity_node,
                                         new_course,
                                         is_baseline=True)
 
 
-def parse_and_save_activity(req,
+def get_activity_content(activity):
+    content = ""
+    activity_type = activity.get("type")
+    if activity_type == "page" or activity_type == "url":
+        temp_content = {}
+        for t in activity.findall("location"):
+            if t.text:
+                temp_content[t.get('lang')] = t.text
+        content = json.dumps(temp_content)
+    elif activity_type == "quiz" or activity_type == "feedback":
+        for c in activity.findall("content"):
+            content = c.text
+    elif activity_type == "resource":
+        for c in activity.findall("location"):
+            content = c.text
+    else:
+        content = None
+
+    return content, activity_type
+
+
+def parse_and_save_activity(request,
                             user,
                             course,
                             section,
-                            act,
+                            activity_node,
                             new_course,
                             is_baseline=False):
     """
@@ -337,37 +389,22 @@ def parse_and_save_activity(req,
     """
 
     title = {}
-    for t in act.findall('title'):
+    for t in activity_node.findall('title'):
         title[t.get('lang')] = t.text
     title = json.dumps(title) if title else None
 
     description = {}
-    for t in act.findall('description'):
+    for t in activity_node.findall('description'):
         description[t.get('lang')] = t.text
     description = json.dumps(description) if description else None
 
-    content = ""
-    act_type = act.get("type")
-    if act_type == "page" or act_type == "url":
-        temp_content = {}
-        for t in act.findall("location"):
-            if t.text:
-                temp_content[t.get('lang')] = t.text
-        content = json.dumps(temp_content)
-    elif act_type == "quiz" or act_type == "feedback":
-        for c in act.findall("content"):
-            content = c.text
-    elif act_type == "resource":
-        for c in act.findall("location"):
-            content = c.text
-    else:
-        content = None
+    content, activity_type = get_activity_content(activity_node)
 
     image = None
-    for i in act.findall("image"):
+    for i in activity_node.findall("image"):
         image = i.get('filename')
 
-    digest = act.get("digest")
+    digest = activity_node.get("digest")
     existed = False
     try:
         activity = Activity.objects.get(digest=digest)
@@ -377,8 +414,8 @@ def parse_and_save_activity(req,
 
     activity.section = section
     activity.title = title
-    activity.type = act_type
-    activity.order = act.get("order")
+    activity.type = activity_type
+    activity.order = activity_node.get("order")
     activity.digest = digest
     activity.baseline = is_baseline
     activity.image = image
@@ -389,7 +426,7 @@ def parse_and_save_activity(req,
         msg_text = _(u'Activity "%(act)s"(%(digest)s) did not exist \
                      previously.') % {'act': activity.title,
                                       'digest': activity.digest}
-        messages.warning(req, msg_text)
+        messages.warning(request, msg_text)
         CoursePublishingLog(course=course,
                             user=user,
                             action="activity_added",
@@ -409,22 +446,26 @@ def parse_and_save_activity(req,
                             action="activity_updated",
                             data=msg_text).save()
 
-    if (act_type == "quiz"):
-        updated_json = parse_and_save_quiz(req, user, activity, act)
+    if (activity_type == "quiz"):
+        updated_json = parse_and_save_quiz(request,
+                                           user,
+                                           activity,
+                                           activity_node)
         # we need to update the JSON contents both in the XML and in the
         # activity data
-        act.find("content").text = "<![CDATA[ " + updated_json + "]]>"
+        activity_node.find("content").text = \
+            "<![CDATA[ " + updated_json + "]]>"
         activity.content = updated_json
 
     activity.save()
 
     # save gamification events
-    gamification = act.find('gamification')
+    gamification = activity_node.find('gamification')
     events = parse_gamification_events(gamification)
     for event in events:
         e, created = ActivityGamificationEvent.objects.get_or_create(
             activity=activity, event=event['name'],
-            defaults={'points': event['points'], 'user': req.user})
+            defaults={'points': event['points'], 'user': request.user})
 
         if created:
             msg_text = _(u'Gamification for "%(event)s" at activity \
@@ -432,7 +473,7 @@ def parse_and_save_activity(req,
                       % {'event': e.event,
                          'act': activity.title,
                          'digest': activity.digest}
-            messages.info(req, msg_text)
+            messages.info(request, msg_text)
             CoursePublishingLog(course=course,
                                 user=user,
                                 action="activity_gamification_added",
@@ -487,8 +528,8 @@ def create_quiz(req, user, quiz_obj, act_xml, activity=None):
 
     quiz = Quiz()
     quiz.owner = user
-    quiz.title = quiz_obj['title']
-    quiz.description = quiz_obj['description']
+    quiz.title = clean_lang_dict(quiz_obj['title'])
+    quiz.description = clean_lang_dict(quiz_obj['description'])
     quiz.save()
 
     quiz_obj['id'] = quiz.pk
@@ -587,7 +628,7 @@ def clean_old_course(req, user, oldsections, old_course_filename, course):
 # helper functions
 def create_quiz_props(quiz, quiz_obj):
     for prop in quiz_obj['props']:
-        if prop is not 'id':
+        if prop != 'id':
             QuizProps(
                 quiz=quiz, name=prop,
                 value=quiz_obj['props'][prop]
@@ -599,7 +640,8 @@ def create_quiz_questions(user, quiz, quiz_obj):
 
         question = Question(owner=user,
                             type=q['question']['type'],
-                            title=q['question']['title'])
+                            title=clean_lang_dict(q['question']['title']))
+
         question.save()
 
         quiz_question = QuizQuestion(quiz=quiz,
@@ -611,7 +653,7 @@ def create_quiz_questions(user, quiz, quiz_obj):
         q['question']['id'] = question.pk
 
         for prop in q['question']['props']:
-            if prop is not 'id':
+            if prop != 'id':
                 QuestionProps(
                     question=question, name=prop,
                     value=q['question']['props'][prop]
@@ -621,7 +663,7 @@ def create_quiz_questions(user, quiz, quiz_obj):
             response = Response(
                 owner=user,
                 question=question,
-                title=r['title'],
+                title=clean_lang_dict(r['title']),
                 score=r['score'],
                 order=r['order']
             )
@@ -629,7 +671,7 @@ def create_quiz_questions(user, quiz, quiz_obj):
             r['id'] = response.pk
 
             for prop in r['props']:
-                if prop is not 'id':
+                if prop != 'id':
                     ResponseProps(
                         response=response, name=prop,
                         value=r['props'][prop]

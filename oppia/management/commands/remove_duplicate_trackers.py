@@ -15,9 +15,6 @@ from oppia.models import Tracker
 class Command(BaseCommand):
     help = _(u"Removes any duplicate trackers based on UUID")
 
-    def add_arguments(self, parser):
-        pass
-
     def handle(self, *args, **options):
         """
         Remove page/media/quiz trackers with no UUID
@@ -54,7 +51,7 @@ class Command(BaseCommand):
             print(_(u"Since duplicates have been found and removed, you \
                     should now run `update_summaries` to ensure the \
                     dashboard graphs are accurate."))
-            accept = raw_input(_(u"Would you like to run `update_summaries` \
+            accept = input(_(u"Would you like to run `update_summaries` \
                                 now? [Yes/No]"))
             if accept == 'y':
                 call_command('update_summaries', fromstart=True)

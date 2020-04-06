@@ -35,13 +35,21 @@
 
 <body class="d-flex flex-column" {% block extra_body %}{% endblock extra_body %}>
 
+{% if CRON_WARNING and request.user.is_authenticated and request.user.is_superuser %}
+    <div class="fixed-bottom alert alert-danger alert-dismissable debug-alert" style="z-index:200;">
+       <a href="#" class="close ml-2" data-dismiss="alert" aria-label="close">&times;</a>
+       <em class="material-icons mr-2 float-left">bug_report</em>
+       {% trans 'Cron tasks have not been run for over 7 days' %}
+    </div>
+{% endif %}
+
 {% if DEBUG %}
      <div class="fixed-bottom alert alert-danger alert-dismissable debug-alert" style="z-index:200;">
         <a href="#" class="close ml-2" data-dismiss="alert" aria-label="close">&times;</a>
         <em class="material-icons mr-2 float-left">bug_report</em>
         {% trans 'This is a development server, anything added here will not be shared on the live site' %}
      </div>
- {% endif %}
+{% endif %}
 
 {% include "includes/header.html" %}
 
@@ -61,8 +69,8 @@
         <div class="container-fluid py-3">
             <div class="row">
                 <div class="col-md-9 pb-2 text-center text-md-left">
-                        <a href="{% url 'oppia_about' %}">{% trans 'footer_about' %}</a> |
-                        <a href="{% url 'oppia_about' %}#terms">{% trans 'footer_terms' %}</a>
+                        <a href="{% url 'oppia:about' %}">{% trans 'footer_about' %}</a> |
+                        <a href="{% url 'oppia:about' %}#terms">{% trans 'footer_terms' %}</a>
                 </div>
                 <div class="col-md-3 small align-self-end pb-2 text-center text-md-right">{{ version }} &copy; {% now "Y" %} <a href="http://digital-campus.org">Digital Campus</a></div>
             </div>
@@ -76,7 +84,9 @@
 <script type="text/javascript" src="https://cdn.jsdelivr.net/momentjs/latest/moment.min.js"></script>
 <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/daterangepicker/daterangepicker.min.js"></script>
 <script src="{% static 'oppia/js/material.min.js' %}"></script>
-<script src="{% static 'oppia/js/common.js' %}"></script>
+
+<script src="{% static 'oppia/js/common.js' %}?v=3"></script>
+
 
 {% block extra_scripts %}
 {% endblock extra_scripts %}

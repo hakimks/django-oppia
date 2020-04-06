@@ -1,44 +1,53 @@
 
 from django.urls import reverse
-from django.test import TestCase
-
-from django.contrib.auth.models import User
-
-from tests.user_logins import *
+from oppia.test import OppiaTestCase
 
 
-class LoginViewTest(TestCase):
+class LoginViewTest(OppiaTestCase):
     fixtures = ['tests/test_user.json',
                 'tests/test_oppia.json',
                 'tests/test_quiz.json',
                 'tests/test_permissions.json',
                 'tests/test_cohort.json']
 
-    def setUp(self):
-        super(LoginViewTest, self).setUp()
-
     def test_already_logged_in_admin(self):
-        self.client.login(username=ADMIN_USER['user'],
-                          password=ADMIN_USER['password'])
-        response = self.client.get(reverse('profile_login'))
-        self.assertRedirects(response, reverse('oppia_home'), 302, 200)
+        self.client.force_login(user=self.admin_user)
+        response = self.client.get(self.login_url)
+        self.assertRedirects(response, reverse('oppia:index'), 302, 200)
 
     def test_already_logged_in_staff(self):
-        self.client.login(username=STAFF_USER['user'],
-                          password=STAFF_USER['password'])
-        response = self.client.get(reverse('profile_login'))
-        self.assertRedirects(response, reverse('oppia_home'), 302, 200)
+        self.client.force_login(user=self.staff_user)
+        response = self.client.get(self.login_url)
+        self.assertRedirects(response, reverse('oppia:index'), 302, 200)
 
     def test_already_logged_in_teacher(self):
-        self.client.login(username=TEACHER_USER['user'],
-                          password=TEACHER_USER['password'])
-        response = self.client.get(reverse('profile_login'), follow=True)
+        self.client.force_login(user=self.teacher_user)
+        response = self.client.get(self.login_url, follow=True)
         self.assertTemplateUsed(response, 'oppia/home-teacher.html')
         self.assertEqual(response.status_code, 200)
 
     def test_already_logged_in_user(self):
-        self.client.login(username=NORMAL_USER['user'],
-                          password=NORMAL_USER['password'])
-        response = self.client.get(reverse('profile_login'), follow=True)
+        self.client.force_login(user=self.normal_user)
+        response = self.client.get(self.login_url, follow=True)
         self.assertTemplateUsed(response, 'profile/user-scorecard.html')
         self.assertEqual(response.status_code, 200)
+
+    def test_login_no_redirect(self):
+        data = {'username': 'admin',
+                'password': 'password'}
+        response = self.client.post(self.login_url, data=data)
+        self.assertRedirects(response, reverse('oppia:index'), 302, 200)
+
+    def test_login_valid_redirect(self):
+        data = {'username': 'admin',
+                'password': 'password',
+                'next': '/course/'}
+        response = self.client.post(self.login_url, data=data)
+        self.assertRedirects(response, reverse('oppia:course'), 302, 200)
+
+    def test_login_invalid_redirect(self):
+        data = {'username': 'admin',
+                'password': 'password',
+                'next': 'http://mysite.com/'}
+        response = self.client.post(self.login_url, data=data)
+        self.assertRedirects(response, reverse('oppia:index'), 302, 200)

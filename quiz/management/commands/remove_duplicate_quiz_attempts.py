@@ -15,17 +15,15 @@ from quiz.models import QuizAttempt
 class Command(BaseCommand):
     help = _(u"Removes any duplicate quiz attempts based on instance_id")
 
-    def add_arguments(self, parser):
-        pass
-
     def handle(self, *args, **options):
         """
         Remove quizattempts with no UUID
         """
         result = QuizAttempt.objects.filter(instance_id=None).delete()
-        self.stdout.write(
-            _(u"\n\n%d quiz attempts removed that had no instance_id\n"
-              % result[0]))
+        if result[0] != 0:
+            self.stdout.write(
+                _(u"\n\n%d quiz attempts removed that had no instance_id\n"
+                  % result[0]))
 
         """
         Remove proper duplicate quizattempts - using max id
@@ -56,7 +54,7 @@ class Command(BaseCommand):
             self.stdout.write(_(u"Since duplicates have been found and \
                                removed, you should now run `update_summaries` \
                                to ensure the dashboard graphs are accurate."))
-            accept = raw_input(_(u"Would you like to run `update_summaries` \
+            accept = input(_(u"Would you like to run `update_summaries` \
                                  now? [Yes/No]"))
             if accept == 'y':
                 call_command('update_summaries', fromstart=True)

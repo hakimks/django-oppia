@@ -1,5 +1,3 @@
-# oppia/awards.py
-
 import datetime
 
 from django.conf import settings
@@ -13,13 +11,15 @@ from oppia.signals import badgeaward_callback
 
 models.signals.post_save.connect(badgeaward_callback, sender=Award)
 
+STR_COURSE_COMPLETED = "Course completed: "
+
 
 def courses_completed(hours):
     try:
         badge = Badge.objects.get(ref='coursecompleted')
     except Badge.DoesNotExist:
         print("Badge not found: coursecompleted")
-        return
+        return False
 
     print(settings.BADGE_AWARDING_METHOD)
     print(hours)
@@ -36,7 +36,7 @@ def courses_completed(hours):
        == settings.BADGE_AWARD_METHOD_ALL_QUIZZES:
         badge_award_all_quizzes(badge, hours)
 
-    return
+    return True
 
 
 def badge_award_all_activities(badge, hours):
@@ -78,8 +78,8 @@ def badge_award_all_activities(badge, hours):
                 award = Award()
                 award.badge = badge
                 award.user = user_awarded
-                award.description = "Course completed: " \
-                                    + course_award.get_title()
+                award.description = STR_COURSE_COMPLETED \
+                    + course_award.get_title()
                 award.save()
 
                 am = AwardCourse()
@@ -132,7 +132,7 @@ def badge_award_final_quiz(badge, hours):
                 award = Award()
                 award.badge = badge
                 award.user = u
-                award.description = "Course completed: " + c.get_title()
+                award.description = STR_COURSE_COMPLETED + c.get_title()
                 award.save()
 
                 am = AwardCourse()
@@ -163,29 +163,27 @@ def badge_award_all_quizzes(badge, hours):
         users = users.exclude(award__awardcourse__course=c).distinct()
 
         for u in users:
-            if AwardCourse.objects.filter(award__user=u,
-                                          course=c).count() == 0:
-                user_completed = Tracker.objects.filter(user=u,
-                                                        course=c,
-                                                        completed=True,
-                                                        type=Activity.QUIZ,
-                                                        digest__in=digests) \
-                    .values('digest') \
-                    .distinct() \
-                    .count()
-                if digests.count() == user_completed:
-                    print(c.title)
-                    print("-----------------------------")
-                    print(digests.count())
-                    print(u.username + " AWARD BADGE")
-                    award = Award()
-                    award.badge = badge
-                    award.user = u
-                    award.description = "Course completed: " + c.get_title()
-                    award.save()
+            user_completed = Tracker.objects.filter(user=u,
+                                                    course=c,
+                                                    completed=True,
+                                                    type=Activity.QUIZ,
+                                                    digest__in=digests) \
+                .values('digest') \
+                .distinct() \
+                .count()
+            if digests.count() == user_completed:
+                print(c.title)
+                print("-----------------------------")
+                print(digests.count())
+                print(u.username + " AWARD BADGE")
+                award = Award()
+                award.badge = badge
+                award.user = u
+                award.description = STR_COURSE_COMPLETED + c.get_title()
+                award.save()
 
-                    am = AwardCourse()
-                    am.course = c
-                    am.award = award
-                    am.course_version = c.version
-                    am.save()
+                am = AwardCourse()
+                am.course = c
+                am.award = award
+                am.course_version = c.version
+                am.save()
